@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9MBN5EMRWJ"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-9MBN5EMRWJ');
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana 地址日交易统计工具 (实时监控版)</title>
+    <link href="https://framerusercontent.com/images/CLSuCBjaHNizuyLUqgzszDKLlBY.png" rel="icon"
+        media="(prefers-color-scheme: light)">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+    <div class="max-w-4xl mx-auto py-12 px-4">
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2 flex items-center">
+                <span class="mr-2">📊</span> Solana 地址实时交易统计
+                <span id="liveBadge"
+                    class="ml-auto hidden text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full animate-pulse">●
+                    LIVE</span>
+            </h1>
+            <p class="text-sm text-gray-500 mb-6">抓取最近两周数据，并实时监听新发生的交易（无需刷新）。</p>
+
+            <div class="flex flex-col md:flex-row gap-3">
+                <input type="text" id="addressInput" placeholder="请输入 SOL 钱包地址..."
+                    class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <button id="btnText"
+                    class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-200 disabled:opacity-50">
+                    开始分析
+                </button>
+            </div>
+            <p id="status" class="mt-3 text-sm text-purple-600 font-medium"></p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <canvas id="txChart" width="400" height="200"></canvas>
+            <div id="emptyState" class="py-20 text-center text-gray-400">
+                暂无数据，请在上方输入地址并点击分析
+            </div>
+        </div>
+    </div>
+
+    <div id="donateBtn"
+        class="fixed bottom-6 right-6 w-12 h-12 bg-orange-500 text-white rounded-full shadow-2xl flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-all hover:scale-110 z-50 group">
+        <span class="font-bold">赏</span>
+        <span
+            class="absolute right-14 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">支持一下开发者</span>
+    </div>
+
+    <div id="donateModal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl relative">
+            <button id="closeDonate" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
+
+            <h3 class="text-xl font-bold text-gray-900 mb-2">感谢支持 🙌</h3>
+            <p class="text-sm text-gray-500 mb-6">您的支持是工具持续维护的动力</p>
+
+            <div class="bg-white p-4 mb-4 flex justify-center">
+                <div id="qrcode" class="p-2 border border-gray-100 rounded-lg shadow-inner"></div>
+            </div>
+            <div class="mt-2 p-2 bg-gray-50 rounded-lg group cursor-pointer active:bg-gray-200 transition-colors"
+                id="copyAddr">
+                <p class="text-[10px] text-gray-400 mb-1">SOL 接收地址 (点击复制):</p>
+                <p id="solAddress" class="text-[9px] break-all text-indigo-600 font-mono">
+                    EAeFK7tGNKEurH8T5Kev3pg3tQgXAke5z5TeMZZQi7z9</p>
+            </div>
+            <p class="text-xs text-gray-400"> </p>
+        </div>
+    </div>
+
+    <script src="main.js?v=20260207"></script>
+</body>
+
+</html>
