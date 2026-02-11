@@ -4,7 +4,19 @@
     let currentStats = {};
     let subscriptionId = null;
     let processedSignatures = new Set();
+    let labels = []; // 提升为全局，确保渲染和统计使用同一套坐标轴
     const SOL_ADDRESS_BASE = "EAeFK7tGNKEurH8T5Kev3pg3tQgXAke5z5TeMZZQi7z9";
+
+    // 新增：记录当前活跃的连接对象，确保销毁时能对上号
+    let activeConnection = null;
+
+    // 工具函数：获取 UTC 日期字符串 (格式: MM-DD)
+    const getUTCDateStr = (date) => {
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${month}-${day}`;
+    };
+
 
     // --- 2. 核心功能函数 ---
     async function fetchStats() {
@@ -18,22 +30,50 @@
             return;
         }
 
-        const RPC_URL = "https://mainnet.helius-rpc.com/?api-key=401bf178-3c34-4f65-a0d1-bfdbeb9d3899";
+        const RPC_URL = "https://skilled-warmhearted-lambo.solana-mainnet.quiknode.pro/5826f4b4bf51ad0344c9138d9bc752118d4f79a3/";
+        // const RPC_URL = "https://mainnet.helius-rpc.com/?api-key=401bf178-3c34-4f65-a0d1-bfdbeb9d3899";
         const connection = new solanaWeb3.Connection(RPC_URL, 'confirmed');
-        let pubKey = new solanaWeb3.PublicKey(address);
+        let pubKey;
 
-        if (subscriptionId !== null) {
-            try { await connection.removeOnLogsListener(subscriptionId); } catch (e) { }
+        try {
+            pubKey = new solanaWeb3.PublicKey(address);
+        }catch (e) {
+            alert("无效的地址格式");
+            return;
+        }
+        // --- 核心修复：彻底销毁旧监听 ---
+        if (subscriptionId !== null && activeConnection !== null) {
+            try {
+                // 必须使用【创建该订阅时】的那个 connection 对象来移除
+                await activeConnection.removeOnLogsListener(subscriptionId);
+                console.log("旧监听器已彻底移除");
+            } catch (e) {
+                console.error("注销监听失败:", e);
+            }
             subscriptionId = null;
         }
+        activeConnection = connection; // 更新当前活跃连接
         processedSignatures.clear();
+        currentStats = {};
+        labels = [];
         liveBadge.classList.add('hidden');
 
-        const TWO_WEEKS_AGO = Math.floor(Date.now() / 1000) - (14 * 24 * 60 * 60);
+        // --- C. 初始化 UTC 时间轴 ---
+        const now = new Date();
+        // 获取 UTC 今天的 0 点时间戳
+        const utcTodayZero = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) / 1000;
+        const TWO_WEEKS_AGO = utcTodayZero - (13 * 24 * 60 * 60);
+
+        for (let i = 13; i >= 0; i--) {
+            const date = new Date((utcTodayZero - (i * 24 * 60 * 60)) * 1000);
+            const dateStr = getUTCDateStr(date);
+            labels.push(dateStr);
+            currentStats[dateStr] = 0; // 预填充 0，保证图表完整
+        }
+
         btn.disabled = true;
         btn.innerText = "历史抓取中...";
         status.innerText = "正在获取最近两周的历史数据...";
-        currentStats = {};
 
         try {
             let lastSignature = null;
@@ -47,10 +87,21 @@
                 for (let sig of signatures) {
                     if (sig.blockTime < TWO_WEEKS_AGO) { keepFetching = false; break; }
                     if (sig.err === null) {
-                        const date = new Date(sig.blockTime * 1000).toLocaleDateString('zh-CN');
-                        currentStats[date] = (currentStats[date] || 0) + 1;
+
+                        // 使用 UTC 格式化日期
+                        const txDate = new Date(sig.blockTime * 1000);
+                        const dateStr = getUTCDateStr(txDate);
+
+                        if (currentStats[dateStr] !== undefined) {
+                            currentStats[dateStr]++;
+                        }
                         processedSignatures.add(sig.signature);
                         count++;
+
+                        // const date = new Date(sig.blockTime * 1000).toLocaleDateString('zh-CN');
+                        // currentStats[date] = (currentStats[date] || 0) + 1;
+                        // processedSignatures.add(sig.signature);
+                        // count++;
                     }
                 }
                 lastSignature = signatures[signatures.length - 1].signature;
@@ -65,9 +116,15 @@
             subscriptionId = connection.onLogs(pubKey, (logs) => {
                 if (logs.err !== null || processedSignatures.has(logs.signature)) return;
                 processedSignatures.add(logs.signature);
-                const today = new Date().toLocaleDateString('zh-CN');
-                currentStats[today] = (currentStats[today] || 0) + 1;
-                renderChart();
+
+                const nowUTC = new Date();
+                const todayStr = getUTCDateStr(nowUTC);
+
+                if (currentStats[todayStr] !== undefined) {
+                    currentStats[todayStr]++;
+                    console.log(`[实时] 收到新交易: ${todayStr}`);
+                    renderChart();
+                }
             }, 'confirmed');
 
         } catch (err) {
@@ -80,13 +137,12 @@
 
     function renderChart() {
         const ctx = document.getElementById('txChart').getContext('2d');
-        const chartData = Object.entries(currentStats)
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => new Date(a.date.replace(/\//g, '-')) - new Date(b.date.replace(/\//g, '-')));
+        // 直接使用有序的 labels 映射数据，彻底解决排序混乱问题
+        const dataValues = labels.map(date => currentStats[date] || 0);
 
         if (myChart) {
-            myChart.data.labels = chartData.map(d => d.date);
-            myChart.data.datasets[0].data = chartData.map(d => d.count);
+            myChart.data.labels = labels;
+            myChart.data.datasets[0].data = dataValues;
             myChart.update('none');
             return;
         }
@@ -94,10 +150,10 @@
         myChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: chartData.map(d => d.date),
+                labels: labels,
                 datasets: [{
                     label: '交易笔数',
-                    data: chartData.map(d => d.count),
+                    data: dataValues,
                     backgroundColor: 'rgba(139, 92, 246, 0.6)',
                     borderColor: 'rgb(139, 92, 246)',
                     borderWidth: 1,
@@ -106,15 +162,31 @@
             },
             options: {
                 responsive: true,
+                // 解决实时更新时数字显示的核心逻辑
                 animation: {
-                    onComplete: function () {
-                        const cInstance = this; const c = cInstance.ctx;
-                        c.font = 'bold 10px monospace'; c.fillStyle = "#7c3aed"; c.textAlign = 'center';
-                        this.data.datasets.forEach(function (ds, i) {
-                            cInstance.getDatasetMeta(i).data.forEach(function (bar, idx) {
-                                c.fillText(ds.data[idx], bar.x, bar.y - 5);
+                    onComplete: function() {
+                        const chartInstance = this;
+                        const c = chartInstance.ctx;
+                        c.font = 'bold 12px monospace';
+                        c.fillStyle = "#7c3aed";
+                        c.textAlign = 'center';
+                        c.textBaseline = 'bottom';
+
+                        this.data.datasets.forEach(function(dataset, i) {
+                            const meta = chartInstance.getDatasetMeta(i);
+                            meta.data.forEach(function(bar, index) {
+                                const data = dataset.data[index];
+                                // 在柱子顶部上方 5 像素处绘制文字
+                                c.fillText(data, bar.x, bar.y - 5);
                             });
                         });
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        // 预留顶部空间给数字，防止数字被遮挡
+                        grace: '10%'
                     }
                 }
             }
