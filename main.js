@@ -30,6 +30,9 @@
             return;
         }
 
+        // --- 新增：保存有效地址到 localStorage ---
+        localStorage.setItem('lastSolanaAddress', address);
+
         const RPC_URL = "https://skilled-warmhearted-lambo.solana-mainnet.quiknode.pro/5826f4b4bf51ad0344c9138d9bc752118d4f79a3/";
         // const RPC_URL = "https://mainnet.helius-rpc.com/?api-key=401bf178-3c34-4f65-a0d1-bfdbeb9d3899";
         const connection = new solanaWeb3.Connection(RPC_URL, 'confirmed');
@@ -204,6 +207,24 @@
         // B. 分析按钮绑定
         const analyzeBtn = document.getElementById('btnText');
         if (analyzeBtn) analyzeBtn.onclick = fetchStats;
+
+        // --- 新增：从 localStorage 读取地址 ---
+        const addressInput = document.getElementById('addressInput');
+
+        // 1. 优先尝试从 URL 获取参数 (?addr=xxx)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlAddr = urlParams.get('addr');
+
+        // 2. 其次尝试从 localStorage 获取
+        const savedAddress = localStorage.getItem('lastSolanaAddress');
+
+        const finalAddr = urlAddr || savedAddress;
+
+        if (finalAddr && addressInput) {
+            addressInput.value = finalAddr;
+            // 如果是从 URL 进来的，建议直接触发分析
+            if (urlAddr) fetchStats();
+        }
 
         // C. 打赏弹窗逻辑
         const dBtn = document.getElementById('donateBtn');
