@@ -14,6 +14,11 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solana 地址日交易统计工具 (实时监控版)</title>
+    <style>
+        #txChart {
+            cursor: pointer;
+        }
+    </style>
     <link href="https://framerusercontent.com/images/CLSuCBjaHNizuyLUqgzszDKLlBY.png" rel="icon"
         media="(prefers-color-scheme: light)">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,23 +39,63 @@
             </h1>
             <p class="text-sm text-gray-500 mb-6">抓取最近两周数据，并实时监听新发生的交易（无需刷新）。</p>
 
-            <div class="flex flex-col md:flex-row gap-3">
-                <input type="text" id="addressInput" placeholder="请输入 SOL 钱包地址..."
-                    class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
-                <button id="btnText"
-                    class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-200 disabled:opacity-50">
-                    开始分析
-                </button>
+            <div class="flex flex-col gap-3">
+                <!-- 地址输入框 + 开始分析 -->
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="addressInput" placeholder="请输入 SOL 钱包地址..."
+                        class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                    <button id="btnText"
+                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-8 rounded-lg transition duration-200 disabled:opacity-50 whitespace-nowrap">
+                        开始分析
+                    </button>
+                </div>
             </div>
             <p id="status" class="mt-3 text-sm text-purple-600 font-medium"></p>
+            <div id="statsContainer" class="mt-6 grid grid-cols-2 sm:grid-cols-5 gap-4 hidden">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                    <p class="text-xs text-blue-600 font-semibold mb-1">活跃天数</p>
+                    <p id="activeDays" class="text-2xl font-bold text-blue-700">0</p>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                    <p class="text-xs text-green-600 font-semibold mb-1">总交易笔数</p>
+                    <p id="totalTxs" class="text-2xl font-bold text-green-700">0</p>
+                    <p class="text-[10px] text-green-500 mt-1">近两周内</p>
+                </div>
+                
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                    <p class="text-xs text-purple-600 font-semibold mb-1">成功笔数</p>
+                    <p id="successTxs" class="text-2xl font-bold text-purple-700">0</p>
+                    <p class="text-[10px] text-purple-500 mt-1">近两周内</p>
+                </div>
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                    <p class="text-xs text-orange-600 font-semibold mb-1">成功率</p>
+                    <p id="successRate" class="text-2xl font-bold text-orange-700">0%</p>
+                    <p class="text-[10px] text-orange-500 mt-1">近两周内</p>
+                </div>
+                <div class="bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-lg border border-red-200">
+                    <p class="text-xs text-red-600 font-semibold mb-1">最后交互</p>
+                    <p id="lastInteraction" class="text-2xl font-bold text-red-700">-</p>
+                    <p class="text-[10px] text-red-500 mt-1">日期 (MM-DD)</p>
+                </div>
+            </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">📈 交易笔数</h2>
+            <p class="text-xs text-gray-400 mb-3">💡 紫色：成功交易 | 红色：失败交易 | 点击柱状图可跳转到Solscan查看该日详细交易</p>
             <canvas id="txChart" width="400" height="200"></canvas>
             <div id="emptyState" class="py-20 text-center text-gray-400">
                 暂无数据，请在上方输入地址并点击分析
             </div>
         </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 mt-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">📉 失败交易笔数（单独统计）</h2>
+            <p class="text-xs text-gray-400 mb-3">💡 单独展示失败交易的每日笔数，便于独立分析</p>
+            <canvas id="failChart" width="400" height="200"></canvas>
+        </div>
+        
+
     </div>
 
     <div id="donateBtn"
@@ -85,6 +130,25 @@
             <p class="text-xs text-gray-400"> </p>
         </div>
     </div>
+
+    <!-- 固定底部网址横幅 -->
+    <div
+        class="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-4 shadow-lg z-40">
+        <div class="max-w-4xl mx-auto flex items-center justify-center sm:justify-between gap-4 flex-wrap">
+            <span class="text-xs sm:text-sm font-semibold">Solana 交易统计工具 - 实时监控版</span>
+            <a href="https://soltracker-tool.pages.dev/" target="_blank"
+                class="text-xs sm:text-sm font-mono bg-white text-purple-600 px-3 py-1 rounded-full hover:bg-purple-50 transition-colors font-semibold">
+                soltracker-tool.pages.dev
+            </a>
+        </div>
+    </div>
+
+    <!-- 为底部横幅留出空间 -->
+    <style>
+        body {
+            padding-bottom: 60px;
+        }
+    </style>
 
     <script src="main.js?v=20260207"></script>
 </body>
