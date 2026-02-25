@@ -244,12 +244,18 @@
 
         // 更新统计卡片
         const statsContainer = document.getElementById('statsContainer');
+        const todaySuccessTxsEl = document.getElementById('todaySuccessTxs');
         const activeDaysEl = document.getElementById('activeDays');
         const totalTxsEl = document.getElementById('totalTxs');
 
         const successTxsEl = document.getElementById('successTxs');
         const successRateEl = document.getElementById('successRate');
         const lastInteractionEl = document.getElementById('lastInteraction');
+
+        // 计算当日成功交易笔数
+        const nowUTC = new Date();
+        const todayStr = getUTCDateStr(nowUTC);
+        const todaySuccessTxs = currentStats[todayStr] || 0;
 
         const emptyState = document.getElementById('emptyState');
         if (totalTxsRecent > 0) {
@@ -260,6 +266,7 @@
             if (emptyState) emptyState.style.display = '';
         }
 
+        if (todaySuccessTxsEl) todaySuccessTxsEl.innerText = todaySuccessTxs;
         if (activeDaysEl) activeDaysEl.innerText = activeDays;
         if (totalTxsEl) totalTxsEl.innerText = totalTxsRecent;
         if (successTxsEl) successTxsEl.innerText = totalSuccessRecent;
