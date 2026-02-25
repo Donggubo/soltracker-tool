@@ -131,6 +131,13 @@
         btn.innerText = "历史抓取中...";
         status.innerText = "正在获取最近两周的历史数据...";
 
+        // 读取复选框：只有勾选时才获取当日的 gas 费用（此操作可能较慢）
+        const fetchTodayGasCheckbox = document.getElementById('fetchTodayGas');
+        const shouldFetchTodayGas = fetchTodayGasCheckbox ? fetchTodayGasCheckbox.checked : false;
+        if (shouldFetchTodayGas) {
+            status.innerText += ' 注意：已启用当日Gas费用抓取（可能较慢）。';
+        }
+
         try {
             let lastSignature = null;
             let keepFetching = true;
@@ -156,8 +163,8 @@
                         currentFailedStatsISO[isoDate] = (currentFailedStatsISO[isoDate] || 0) + 1;
                     }
 
-                    // 只收集当天的交易用于获取 gas 费用
-                    if (dateStr === todayStr) {
+                    // 只在用户勾选时收集当天的交易用于获取 gas 费用
+                    if (dateStr === todayStr && shouldFetchTodayGas) {
                         todayTransactions.push(sig);
                     }
 
@@ -175,19 +182,19 @@
                 const todayStr = getUTCDateStr(new Date());
                 const todayISO = new Date().toISOString().slice(0, 10);
                 const todaySigArray = todayTransactions.map(s => s.signature);
-                
+
                 try {
                     // 严格限制批处理：每批 6 条，每批之间延迟 1.5 秒
                     // 这样平均请求速率约 4 请求/秒，远低于 15 请求/秒 的限制
                     const BATCH_SIZE = 6;
                     const BATCH_DELAY_MS = 1500; // 1.5 秒延迟
-                    
+
                     for (let i = 0; i < todaySigArray.length; i += BATCH_SIZE) {
                         const batch = todaySigArray.slice(i, Math.min(i + BATCH_SIZE, todaySigArray.length));
-                        
+
                         try {
                             status.innerText = `获取 gas 费用中... (${Math.min(i + BATCH_SIZE, todaySigArray.length)}/${todaySigArray.length})`;
-                            
+
                             const txDetails = await connection.getParsedTransactions(batch, {
                                 maxSupportedTransactionVersion: 0,
                                 commitment: 'confirmed'
@@ -303,6 +310,9 @@
         const statsContainer = document.getElementById('statsContainer');
         const todaySuccessTxsEl = document.getElementById('todaySuccessTxs');
         const todayGasSolEl = document.getElementById('todayGasSol');
+        const todayGasCardEl = document.getElementById('todayGasCard');
+        const fetchTodayGasCheckbox = document.getElementById('fetchTodayGas');
+        const shouldShowGasCard = fetchTodayGasCheckbox ? fetchTodayGasCheckbox.checked : false;
         const activeDaysEl = document.getElementById('activeDays');
         const totalTxsEl = document.getElementById('totalTxs');
 
@@ -328,6 +338,23 @@
         if (todaySuccessTxsEl) todaySuccessTxsEl.innerText = todaySuccessTxs;
         if (todayGasSolEl) todayGasSolEl.innerText = todayGasSol.toFixed(4);
         if (activeDaysEl) activeDaysEl.innerText = activeDays;
+
+        // 根据复选框决定当日Gas卡片是否显示，并调整卡片网格列数
+        if (todayGasCardEl) {
+            if (shouldShowGasCard) {
+                todayGasCardEl.classList.remove('hidden');
+                if (statsContainer) {
+                    statsContainer.classList.remove('sm:grid-cols-6');
+                    statsContainer.classList.add('sm:grid-cols-7');
+                }
+            } else {
+                todayGasCardEl.classList.add('hidden');
+                if (statsContainer) {
+                    statsContainer.classList.remove('sm:grid-cols-7');
+                    statsContainer.classList.add('sm:grid-cols-6');
+                }
+            }
+        }
         if (totalTxsEl) totalTxsEl.innerText = totalTxsRecent;
         if (successTxsEl) successTxsEl.innerText = totalSuccessRecent;
         if (successRateEl) successRateEl.innerText = successRateRecent + '%';
@@ -535,6 +562,33 @@
             copyBtn.onclick = () => {
                 navigator.clipboard.writeText(SOL_ADDRESS_BASE).then(() => alert("地址已复制，感谢支持！"));
             };
+        }
+
+        // 当日Gas费复选框：根据勾选状态显示/隐藏当日Gas卡片，并调整卡片网格列数以均分剩余卡片
+        const fetchTodayGasCheckbox = document.getElementById('fetchTodayGas');
+        const todayGasCard = document.getElementById('todayGasCard');
+        const statsContainerEl = document.getElementById('statsContainer');
+        if (fetchTodayGasCheckbox && todayGasCard) {
+            const updateGasCardVisibility = () => {
+                const show = fetchTodayGasCheckbox.checked;
+                if (show) {
+                    todayGasCard.classList.remove('hidden');
+                    if (statsContainerEl) {
+                        statsContainerEl.classList.remove('sm:grid-cols-6');
+                        statsContainerEl.classList.add('sm:grid-cols-7');
+                    }
+                } else {
+                    todayGasCard.classList.add('hidden');
+                    if (statsContainerEl) {
+                        statsContainerEl.classList.remove('sm:grid-cols-7');
+                        statsContainerEl.classList.add('sm:grid-cols-6');
+                    }
+                }
+            };
+            // 初始化可见性
+            updateGasCardVisibility();
+            // 监听用户切换
+            fetchTodayGasCheckbox.addEventListener('change', updateGasCardVisibility);
         }
     };
 
