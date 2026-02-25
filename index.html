@@ -29,7 +29,7 @@
 
 <body class="bg-gray-50 min-h-screen text-gray-800">
 
-    <div class="max-w-4xl mx-auto py-12 px-4">
+    <div class="max-w-6xl mx-auto py-12 px-4">
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
             <h1 class="text-2xl font-bold text-gray-900 mb-2 flex items-center">
                 <span class="mr-2">📊</span> Solana 地址实时交易统计
@@ -52,6 +52,11 @@
                 <div class="flex items-center gap-2 text-sm text-gray-500 mt-2">
                     <input type="checkbox" id="fetchTodayGas" class="h-4 w-4" />
                     <label for="fetchTodayGas">获取当日Gas费（会较慢，勾选后启用）</label>
+                </div>
+                <div id="gasDateContainer" class="mt-2 hidden">
+                    <label for="gasDatePicker" class="text-xs text-gray-500">选择日期：</label>
+                    <input type="date" id="gasDatePicker" class="ml-2 border border-gray-300 rounded px-2 py-1" />
+                    <p class="text-[10px] text-gray-400 mt-1">勾选并选择日期后，将统计该日的 Gas 费用（可能较慢）。</p>
                 </div>
             </div>
             <p id="status" class="mt-3 text-sm text-purple-600 font-medium"></p>
@@ -149,7 +154,7 @@
     <!-- 固定底部网址横幅 -->
     <div
         class="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-4 shadow-lg z-40">
-        <div class="max-w-4xl mx-auto flex items-center justify-center sm:justify-between gap-4 flex-wrap">
+        <div class="max-w-6xl mx-auto flex items-center justify-center sm:justify-between gap-4 flex-wrap">
             <span class="text-xs sm:text-sm font-semibold">Solana 交易统计工具 - 实时监控版</span>
             <a href="https://soltracker-tool.pages.dev/" target="_blank"
                 class="text-xs sm:text-sm font-mono bg-white text-purple-600 px-3 py-1 rounded-full hover:bg-purple-50 transition-colors font-semibold">

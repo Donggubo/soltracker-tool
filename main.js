@@ -131,11 +131,23 @@
         btn.innerText = "历史抓取中...";
         status.innerText = "正在获取最近两周的历史数据...";
 
-        // 读取复选框：只有勾选时才获取当日的 gas 费用（此操作可能较慢）
+        // 读取复选框与日期选择：如果勾选但未选日期，则默认使用当天日期
         const fetchTodayGasCheckbox = document.getElementById('fetchTodayGas');
-        const shouldFetchTodayGas = fetchTodayGasCheckbox ? fetchTodayGasCheckbox.checked : false;
-        if (shouldFetchTodayGas) {
-            status.innerText += ' 注意：已启用当日Gas费用抓取（可能较慢）。';
+        const gasDatePicker = document.getElementById('gasDatePicker');
+        let gasDateVal = gasDatePicker ? gasDatePicker.value : '';
+        let shouldFetchGasForDate = false;
+        let targetISO = '';
+        let targetMMDD = '';
+        if (fetchTodayGasCheckbox && fetchTodayGasCheckbox.checked) {
+            // 如果用户没有选择日期，默认使用当天（UTC 日期）
+            if (!gasDateVal) {
+                gasDateVal = new Date().toISOString().slice(0, 10);
+            }
+            shouldFetchGasForDate = true;
+            targetISO = gasDateVal; // yyyy-mm-dd
+            const tmp = new Date(targetISO + 'T00:00:00Z');
+            targetMMDD = getUTCDateStr(tmp);
+            status.innerText += ` 注意：已启用 ${targetISO} 的 Gas 费用抓取（可能较慢）。`;
         }
 
         try {
@@ -163,9 +175,11 @@
                         currentFailedStatsISO[isoDate] = (currentFailedStatsISO[isoDate] || 0) + 1;
                     }
 
-                    // 只在用户勾选时收集当天的交易用于获取 gas 费用
-                    if (dateStr === todayStr && shouldFetchTodayGas) {
-                        todayTransactions.push(sig);
+                    // 如果用户勾选并选择了日期，则收集对应日期的交易用于获取 gas 费用
+                    if (shouldFetchGasForDate) {
+                        if (isoDate === targetISO) {
+                            todayTransactions.push(sig);
+                        }
                     }
 
                     processedSignatures.add(sig.signature);
@@ -177,10 +191,10 @@
                 status.innerText = `已获取 ${count} 笔历史交易...`;
             }
 
-            // 获取当天交易的详情以计算 gas 费用
+            // 获取目标日期交易的详情以计算 gas 费用（按批处理，避免速率限制）
             if (todayTransactions.length > 0) {
-                const todayStr = getUTCDateStr(new Date());
-                const todayISO = new Date().toISOString().slice(0, 10);
+                const targetStrForStore = targetMMDD || getUTCDateStr(new Date());
+                const targetISOForStore = targetISO || new Date().toISOString().slice(0, 10);
                 const todaySigArray = todayTransactions.map(s => s.signature);
 
                 try {
@@ -203,8 +217,8 @@
                             txDetails.forEach((tx, index) => {
                                 if (tx && tx.meta) {
                                     const gasSol = tx.meta.fee / 1000000000; // lamports to SOL
-                                    currentGasStats[todayStr] = (currentGasStats[todayStr] || 0) + gasSol;
-                                    currentGasStatsISO[todayISO] = (currentGasStatsISO[todayISO] || 0) + gasSol;
+                                    currentGasStats[targetStrForStore] = (currentGasStats[targetStrForStore] || 0) + gasSol;
+                                    currentGasStatsISO[targetISOForStore] = (currentGasStatsISO[targetISOForStore] || 0) + gasSol;
                                     console.log(`交易 ${batch[index].substring(0, 8)}... 的手续费为: ${gasSol} SOL`);
                                 }
                             });
@@ -320,11 +334,20 @@
         const successRateEl = document.getElementById('successRate');
         const lastInteractionEl = document.getElementById('lastInteraction');
 
-        // 计算当日成功交易笔数和 gas 费用（SOL）
+        // 计算当日或所选日期的成功交易笔数和 gas 费用（SOL）
         const nowUTC = new Date();
-        const todayStr = getUTCDateStr(nowUTC);
-        const todaySuccessTxs = currentStats[todayStr] || 0;
-        const todayGasSol = currentGasStats[todayStr] || 0;
+        const defaultTodayStr = getUTCDateStr(nowUTC);
+        const todaySuccessTxs = currentStats[defaultTodayStr] || 0;
+
+        // 如果用户勾选并选择了日期，则展示选中日期的 gas 总和；否则展示今天的
+        const gasDatePickerEl = document.getElementById('gasDatePicker');
+        const selectedDateVal = gasDatePickerEl ? gasDatePickerEl.value : '';
+        let displayGasKey = defaultTodayStr;
+        if (fetchTodayGasCheckbox && fetchTodayGasCheckbox.checked && selectedDateVal) {
+            const selD = new Date(selectedDateVal + 'T00:00:00Z');
+            displayGasKey = getUTCDateStr(selD);
+        }
+        const todayGasSol = currentGasStats[displayGasKey] || 0;
 
         const emptyState = document.getElementById('emptyState');
         if (totalTxsRecent > 0) {
@@ -568,17 +591,20 @@
         const fetchTodayGasCheckbox = document.getElementById('fetchTodayGas');
         const todayGasCard = document.getElementById('todayGasCard');
         const statsContainerEl = document.getElementById('statsContainer');
+        const gasDateContainer = document.getElementById('gasDateContainer');
         if (fetchTodayGasCheckbox && todayGasCard) {
             const updateGasCardVisibility = () => {
                 const show = fetchTodayGasCheckbox.checked;
                 if (show) {
                     todayGasCard.classList.remove('hidden');
+                    if (gasDateContainer) gasDateContainer.classList.remove('hidden');
                     if (statsContainerEl) {
                         statsContainerEl.classList.remove('sm:grid-cols-6');
                         statsContainerEl.classList.add('sm:grid-cols-7');
                     }
                 } else {
                     todayGasCard.classList.add('hidden');
+                    if (gasDateContainer) gasDateContainer.classList.add('hidden');
                     if (statsContainerEl) {
                         statsContainerEl.classList.remove('sm:grid-cols-7');
                         statsContainerEl.classList.add('sm:grid-cols-6');
