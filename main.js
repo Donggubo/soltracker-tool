@@ -6,6 +6,8 @@
     let currentFailedStats = {};
     let currentStatsISO = {};
     let currentFailedStatsISO = {};
+    let currentGasStats = {}; // gas fee by MM-DD (in SOL)
+    let currentGasStatsISO = {}; // gas fee by YYYY-MM-DD (in SOL)
     let subscriptionId = null;
     let processedSignatures = new Set();
     let labels = [];
@@ -106,6 +108,8 @@
         currentFailedStats = {};
         currentStatsISO = {};
         currentFailedStatsISO = {};
+        currentGasStats = {};
+        currentGasStatsISO = {};
         labels = [];
         liveBadge.classList.add('hidden');
 
@@ -120,6 +124,7 @@
             labels.push(dateStr);
             currentStats[dateStr] = 0;
             currentFailedStats[dateStr] = 0;
+            currentGasStats[dateStr] = 0;
         }
 
         btn.disabled = true;
@@ -130,6 +135,7 @@
             let lastSignature = null;
             let keepFetching = true;
             let count = 0;
+            let todayTransactions = []; // 存储当天交易用于获取 gas 费用
 
             while (keepFetching) {
                 const signatures = await connection.getSignaturesForAddress(pubKey, { limit: 1000, before: lastSignature });
@@ -140,6 +146,7 @@
                     const txDate = new Date(sig.blockTime * 1000);
                     const dateStr = getUTCDateStr(txDate);
                     const isoDate = new Date(sig.blockTime * 1000).toISOString().slice(0, 10);
+                    const todayStr = getUTCDateStr(new Date());
 
                     if (sig.err === null) {
                         currentStats[dateStr] = (currentStats[dateStr] || 0) + 1;
@@ -149,6 +156,11 @@
                         currentFailedStatsISO[isoDate] = (currentFailedStatsISO[isoDate] || 0) + 1;
                     }
 
+                    // 只收集当天的交易用于获取 gas 费用
+                    if (dateStr === todayStr) {
+                        todayTransactions.push(sig);
+                    }
+
                     processedSignatures.add(sig.signature);
                     count++;
                 }
@@ -156,6 +168,51 @@
                 lastSignature = signatures[signatures.length - 1].signature;
                 if (count > 10000) break;
                 status.innerText = `已获取 ${count} 笔历史交易...`;
+            }
+
+            // 获取当天交易的详情以计算 gas 费用
+            if (todayTransactions.length > 0) {
+                const todayStr = getUTCDateStr(new Date());
+                const todayISO = new Date().toISOString().slice(0, 10);
+                const todaySigArray = todayTransactions.map(s => s.signature);
+                
+                try {
+                    // 严格限制批处理：每批 6 条，每批之间延迟 1.5 秒
+                    // 这样平均请求速率约 4 请求/秒，远低于 15 请求/秒 的限制
+                    const BATCH_SIZE = 6;
+                    const BATCH_DELAY_MS = 1500; // 1.5 秒延迟
+                    
+                    for (let i = 0; i < todaySigArray.length; i += BATCH_SIZE) {
+                        const batch = todaySigArray.slice(i, Math.min(i + BATCH_SIZE, todaySigArray.length));
+                        
+                        try {
+                            status.innerText = `获取 gas 费用中... (${Math.min(i + BATCH_SIZE, todaySigArray.length)}/${todaySigArray.length})`;
+                            
+                            const txDetails = await connection.getParsedTransactions(batch, {
+                                maxSupportedTransactionVersion: 0,
+                                commitment: 'confirmed'
+                            });
+
+                            txDetails.forEach((tx, index) => {
+                                if (tx && tx.meta) {
+                                    const gasSol = tx.meta.fee / 1000000000; // lamports to SOL
+                                    currentGasStats[todayStr] = (currentGasStats[todayStr] || 0) + gasSol;
+                                    currentGasStatsISO[todayISO] = (currentGasStatsISO[todayISO] || 0) + gasSol;
+                                    console.log(`交易 ${batch[index].substring(0, 8)}... 的手续费为: ${gasSol} SOL`);
+                                }
+                            });
+                        } catch (batchErr) {
+                            console.warn(`获取第 ${Math.floor(i / BATCH_SIZE) + 1} 批交易失败: ${batchErr.message}`);
+                        }
+
+                        // 如果不是最后一批，延迟以避免 RPC 限流
+                        if (i + BATCH_SIZE < todaySigArray.length) {
+                            await sleep(BATCH_DELAY_MS);
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`获取当天交易详情失败: ${err.message}`);
+                }
             }
 
             renderChart();
@@ -245,6 +302,7 @@
         // 更新统计卡片
         const statsContainer = document.getElementById('statsContainer');
         const todaySuccessTxsEl = document.getElementById('todaySuccessTxs');
+        const todayGasSolEl = document.getElementById('todayGasSol');
         const activeDaysEl = document.getElementById('activeDays');
         const totalTxsEl = document.getElementById('totalTxs');
 
@@ -252,10 +310,11 @@
         const successRateEl = document.getElementById('successRate');
         const lastInteractionEl = document.getElementById('lastInteraction');
 
-        // 计算当日成功交易笔数
+        // 计算当日成功交易笔数和 gas 费用（SOL）
         const nowUTC = new Date();
         const todayStr = getUTCDateStr(nowUTC);
         const todaySuccessTxs = currentStats[todayStr] || 0;
+        const todayGasSol = currentGasStats[todayStr] || 0;
 
         const emptyState = document.getElementById('emptyState');
         if (totalTxsRecent > 0) {
@@ -267,6 +326,7 @@
         }
 
         if (todaySuccessTxsEl) todaySuccessTxsEl.innerText = todaySuccessTxs;
+        if (todayGasSolEl) todayGasSolEl.innerText = todayGasSol.toFixed(4);
         if (activeDaysEl) activeDaysEl.innerText = activeDays;
         if (totalTxsEl) totalTxsEl.innerText = totalTxsRecent;
         if (successTxsEl) successTxsEl.innerText = totalSuccessRecent;
@@ -433,10 +493,10 @@
     const init = () => {
 
         // A. 防御屏蔽逻辑
-        document.addEventListener('contextmenu', e => e.preventDefault());
-        document.addEventListener('keydown', e => {
-            if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J'))) e.preventDefault();
-        });
+        // document.addEventListener('contextmenu', e => e.preventDefault());
+        // document.addEventListener('keydown', e => {
+        //     if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J'))) e.preventDefault();
+        // });
 
         const analyzeBtn = document.getElementById('btnText');
         if (analyzeBtn) analyzeBtn.onclick = fetchStats;
