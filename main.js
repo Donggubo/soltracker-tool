@@ -543,10 +543,10 @@
     const init = () => {
 
         // A. 防御屏蔽逻辑
-        // document.addEventListener('contextmenu', e => e.preventDefault());
-        // document.addEventListener('keydown', e => {
-        //     if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J'))) e.preventDefault();
-        // });
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J'))) e.preventDefault();
+        });
 
         const analyzeBtn = document.getElementById('btnText');
         if (analyzeBtn) analyzeBtn.onclick = fetchStats;
