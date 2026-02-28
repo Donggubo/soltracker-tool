@@ -27,6 +27,61 @@
     // 延迟函数：实现sleep效果
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // 语音提示函数：提示交易笔数，根据是否达到150笔播放不同的提示
+    const playSound = (todayCount) => {
+        try {
+            // 先播放交易笔数
+            const countMessage = `今天已交易成功 ${todayCount} 笔`;
+            const countUtterance = new SpeechSynthesisUtterance(countMessage);
+            countUtterance.lang = 'zh-CN'; // 设置为中文
+            countUtterance.rate = 1; // 播放速率
+            countUtterance.pitch = 1; // 音调
+            countUtterance.volume = 1; // 音量
+
+            if (todayCount >= 150) {
+                // 达到150笔：播放祝贺语
+                countUtterance.onend = () => {
+                    const congratsMessage = '恭喜今天达到五级圈的交易笔数';
+                    const congratsUtterance = new SpeechSynthesisUtterance(congratsMessage);
+                    congratsUtterance.lang = 'zh-CN';
+                    congratsUtterance.rate = 1;
+                    congratsUtterance.pitch = 1;
+                    congratsUtterance.volume = 1;
+                    window.speechSynthesis.speak(congratsUtterance);
+                };
+            } else {
+                // 不达到150笔：先播放鼓励语，再播放还需的笔数
+                const remaining = 150 - todayCount;
+                countUtterance.onend = () => {
+                    const encourageMessage = '交易150笔更容易达到五级圈';
+                    const encourageUtterance = new SpeechSynthesisUtterance(encourageMessage);
+                    encourageUtterance.lang = 'zh-CN';
+                    encourageUtterance.rate = 1;
+                    encourageUtterance.pitch = 1;
+                    encourageUtterance.volume = 1;
+
+                    encourageUtterance.onend = () => {
+                        const remainMessage = `还剩 ${remaining} 笔达到150笔，再接再厉`;
+                        const remainUtterance = new SpeechSynthesisUtterance(remainMessage);
+                        remainUtterance.lang = 'zh-CN';
+                        remainUtterance.rate = 1;
+                        remainUtterance.pitch = 1;
+                        remainUtterance.volume = 1;
+                        window.speechSynthesis.speak(remainUtterance);
+                    };
+
+                    window.speechSynthesis.speak(encourageUtterance);
+                };
+            }
+
+            // 播放语音
+            window.speechSynthesis.cancel(); // 取消之前的语音
+            window.speechSynthesis.speak(countUtterance);
+        } catch (e) {
+            console.log('语音播放失败:', e);
+        }
+    };
+
     // 根据日期字符串(MM-DD)获取UTC时间戳范围
     const getDateTimeRange = (dateStr) => {
         const year = currentYear;
@@ -359,6 +414,8 @@
         }
 
         if (todaySuccessTxsEl) todaySuccessTxsEl.innerText = todaySuccessTxs;
+        // 无论交易多少笔都播放语音提示
+        playSound(todaySuccessTxs);
         if (todayGasSolEl) todayGasSolEl.innerText = todayGasSol.toFixed(4);
         if (activeDaysEl) activeDaysEl.innerText = activeDays;
 
